@@ -1,0 +1,5 @@
+{
+  "name": "RAG Resilience Analyzer",
+  "description": "A web-based tool for the Resilience Assessment Grid (RAG). Upload survey data to visualize organizational resilience through Radar and Diamond charts.",
+  "requestFramePermissions": []
+}
