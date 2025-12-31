@@ -1,3 +1,5 @@
+
+
 export type PotentialType = 'Response' | 'Monitor' | 'Anticipate' | 'Learn';
 
 export interface LikertMapping {
@@ -14,6 +16,7 @@ export interface SurveyConfig {
   startColumn: number;
   likertMap: LikertMapping;
   questions: QuestionMapping[];
+  colors?: Record<string, string>;
 }
 
 export interface QuestionResult {

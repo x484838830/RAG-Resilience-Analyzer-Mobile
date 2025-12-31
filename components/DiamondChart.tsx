@@ -1,11 +1,18 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { Download, Loader2 } from 'lucide-react';
+// @ts-ignore
+import html2canvas from 'html2canvas';
 import { OverallResult, PotentialType } from '../types';
 
 interface DiamondChartProps {
   data: OverallResult;
+  colors: Record<string, string>;
 }
 
-const DiamondChart: React.FC<DiamondChartProps> = ({ data }) => {
+const DiamondChart: React.FC<DiamondChartProps> = ({ data, colors }) => {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+
   // Configuration
   const size = 500;
   const center = size / 2;
@@ -13,10 +20,10 @@ const DiamondChart: React.FC<DiamondChartProps> = ({ data }) => {
 
   // Order of axes: Top (Response), Right (Monitor), Bottom (Learn), Left (Anticipate)
   const axes: { id: PotentialType; angle: number; color: string }[] = [
-    { id: 'Response', angle: -90, color: '#3b82f6' }, // 12 o'clock (-90 deg)
-    { id: 'Monitor', angle: 0, color: '#ef4444' },    // 3 o'clock (0 deg)
-    { id: 'Learn', angle: 90, color: '#22c55e' },     // 6 o'clock (90 deg)
-    { id: 'Anticipate', angle: 180, color: '#f97316' } // 9 o'clock (180 deg)
+    { id: 'Response', angle: -90, color: colors.Response || '#3b82f6' }, // 12 o'clock (-90 deg)
+    { id: 'Monitor', angle: 0, color: colors.Monitor || '#ef4444' },    // 3 o'clock (0 deg)
+    { id: 'Learn', angle: 90, color: colors.Learn || '#22c55e' },     // 6 o'clock (90 deg)
+    { id: 'Anticipate', angle: 180, color: colors.Anticipate || '#f97316' } // 9 o'clock (180 deg)
   ];
 
   // Helper to get coordinates
@@ -32,23 +39,52 @@ const DiamondChart: React.FC<DiamondChartProps> = ({ data }) => {
 
   // Generate polygon points for data
   const polyPoints = axes.map(axis => {
-    // The Diamond chart uses the "Area Percentage" on the axis?
-    // Based on TRD: "Central value: Overall Resilience... Four corners: Resilience capabilities profile"
-    // And "Calculated logic: % = area / max area".
-    // So we plot the % on the axis.
     const score = data.potentials[axis.id].score;
     const { x, y } = getCoords(axis.angle, score);
     return `${x},${y}`;
   }).join(' ');
 
-  // Generate max diamond (100%)
-  const maxPoints = axes.map(axis => {
-    const { x, y } = getCoords(axis.angle, 100);
-    return `${x},${y}`;
-  }).join(' ');
+  const handleDownload = async () => {
+    if (!chartRef.current) return;
+    setIsDownloading(true);
+    try {
+      const canvas = await html2canvas(chartRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true
+      });
+      
+      const link = document.createElement('a');
+      link.download = `RAG_Diamond_Assessment.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (error) {
+      console.error("Error generating image:", error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+    <div ref={chartRef} className="flex flex-col items-center justify-center bg-white p-6 rounded-xl shadow-lg border border-gray-100 relative group">
+      <div 
+        className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-10" 
+        data-html2canvas-ignore
+      >
+        <button
+          onClick={handleDownload}
+          disabled={isDownloading}
+          className="p-2 text-gray-400 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 rounded-full transition-colors border border-gray-200"
+          title="Download Chart as PNG"
+        >
+          {isDownloading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+
       <h2 className="text-2xl font-bold text-gray-800 mb-2">Overall Resilience Assessment</h2>
       
       <div className="relative" style={{ width: size, height: size }}>
