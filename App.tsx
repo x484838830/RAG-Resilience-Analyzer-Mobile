@@ -529,7 +529,7 @@ const App: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {Object.values(results.potentials).flatMap(p => p.questions).map((q, i) => (
+                    {Object.values(results.potentials).flatMap((p: any) => p.questions).map((q, i) => (
                       <tr key={i} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
