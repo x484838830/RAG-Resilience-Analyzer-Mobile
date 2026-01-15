@@ -31,12 +31,12 @@ export interface QuestionResult {
   potential: PotentialType;
   focus: string;
   averageScore: number;
-  stats?: QuestionStats;
+  stats: QuestionStats; // Added statistics
 }
 
 export interface PotentialResult {
   name: PotentialType;
-  score: number;
+  score: number; // Percentage score (Area based)
   questions: QuestionResult[];
   area: number;
   maxArea: number;
@@ -44,11 +44,12 @@ export interface PotentialResult {
 
 export interface OverallResult {
   potentials: Record<PotentialType, PotentialResult>;
-  overallResilience: number;
-  totalRespondents?: number;
-  warnings?: string[];
+  overallResilience: number; // Total Percentage
+  totalRespondents: number; // Added field for sample size
+  warnings: string[]; // List of unmapped values found in survey
 }
 
+// Global declaration for SheetJS loaded via CDN
 declare global {
   interface Window {
     XLSX: any;

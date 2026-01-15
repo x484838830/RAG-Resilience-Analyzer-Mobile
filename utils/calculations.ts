@@ -43,6 +43,7 @@ const calculateMode = (values: number[]): number => {
       maxFreq = counts[v];
       mode = v;
     } else if (counts[v] === maxFreq) {
+      // If multiple modes, pick the higher score (optimistic approach for this context)
       mode = Math.max(mode, v);
     }
   }
@@ -52,7 +53,7 @@ const calculateMode = (values: number[]): number => {
 const calculateStdDev = (values: number[], mean: number): number => {
   if (values.length < 2) return 0;
   const squareDiffs = values.map(value => Math.pow(value - mean, 2));
-  const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / (values.length - 1);
+  const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / (values.length - 1); // Sample StdDev
   return Math.sqrt(avgSquareDiff);
 };
 
@@ -62,13 +63,16 @@ export const calculatePolygonArea = (scores: number[]): number => {
   const n = scores.length;
   if (n < 3) return 0;
 
+  // Angles distributed evenly around circle
   const angles = Array.from({ length: n }, (_, i) => (2 * Math.PI * i) / n);
 
+  // Convert polar (score, angle) to cartesian (x, y)
   const points = scores.map((r, i) => ({
     x: r * Math.cos(angles[i]),
     y: r * Math.sin(angles[i])
   }));
 
+  // Shoelace formula
   let area = 0;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
@@ -82,27 +86,36 @@ export const calculatePolygonArea = (scores: number[]): number => {
 // --- Main Processing ---
 
 export const processSurveyData = (
-  rawData: any[][],
+  rawData: any[][], // Array of arrays from Excel
   config: { startColumn: number; likertMap: LikertMapping; questions: QuestionMapping[] }
 ) => {
   const { startColumn, likertMap, questions } = config;
   
+  // Track individual question averages
   const questionAverages: QuestionResult[] = [];
+  
+  // Set to collect unmapped values for error reporting
   const unmappedValues = new Set<string>();
 
+  // Iterate through defined questions
   questions.forEach((q, idx) => {
     const colIndex = startColumn + idx;
+    
+    // Collect all answers for this column
     const scores: number[] = [];
 
+    // Skip header row (index 0)
     for (let i = 1; i < rawData.length; i++) {
       const row = rawData[i];
-      if (row && row.length > colIndex) {
+      if (row.length > colIndex) {
         const val = row[colIndex];
+        // Only consider if row is not completely empty
         if (row.length > 0 && val !== undefined && val !== null && String(val).trim() !== '') {
            const score = convertAnswerToScore(val, likertMap);
            if (score !== null) {
              scores.push(score);
            } else {
+             // Collect the problematic value
              unmappedValues.add(String(val));
            }
         }
@@ -113,6 +126,7 @@ export const processSurveyData = (
     const sum = scores.reduce((a, b) => a + b, 0);
     const avg = count > 0 ? Number((sum / count).toFixed(2)) : 0;
 
+    // Calculate Descriptive Stats
     const stats: QuestionStats = {
       n: count,
       median: calculateMedian(scores),
@@ -131,16 +145,23 @@ export const processSurveyData = (
     });
   });
 
+  // Aggregate by Potential for Radar Calculation
   const finalPotentials: Record<string, PotentialResult> = {};
+  
   const potentials: PotentialType[] = ['Response', 'Monitor', 'Anticipate', 'Learn'];
   
   potentials.forEach(p => {
+    // Filter questions for this potential
     const pQuestions = questionAverages.filter(q => q.potential === p);
+    
+    // Get array of scores for Shoelace
     const scores = pQuestions.map(q => q.averageScore);
-    const maxScores = pQuestions.map(() => 5);
+    const maxScores = pQuestions.map(() => 5); // Ideal case
 
     const area = calculatePolygonArea(scores);
     const maxArea = calculatePolygonArea(maxScores);
+    
+    // Safety for 0 division
     const percentage = maxArea > 0 ? (area / maxArea) * 100 : 0;
 
     finalPotentials[p] = {
@@ -152,11 +173,13 @@ export const processSurveyData = (
     };
   });
 
+  // Overall Resilience
   const totalActualArea = Object.values(finalPotentials).reduce((acc, curr) => acc + curr.area, 0);
   const totalMaxArea = Object.values(finalPotentials).reduce((acc, curr) => acc + curr.maxArea, 0);
   const overallResilience = totalMaxArea > 0 ? (totalActualArea / totalMaxArea) * 100 : 0;
 
-  const totalRespondents = rawData.slice(1).filter(r => r && r.length > 0).length;
+  // Count total respondents (excluding header and empty rows)
+  const totalRespondents = rawData.slice(1).filter(r => r.length > 0).length;
 
   return {
     potentials: finalPotentials as Record<PotentialType, PotentialResult>,

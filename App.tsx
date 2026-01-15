@@ -1,13 +1,8 @@
-import React, { useState, useRef } from 'react';
-import { Download, RefreshCw, ChevronRight, Activity, ShieldCheck, BookOpen, Eye, FileDown } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, Activity, AlertTriangle } from 'lucide-react';
 import { utils, read, writeFile } from 'xlsx';
-// @ts-ignore
-import html2canvas from 'html2canvas';
-// @ts-ignore
-import { jsPDF } from 'jspdf';
 import FileUpload from './components/FileUpload';
-import RadarCard from './components/RadarCard';
-import DiamondChart from './components/DiamondChart';
+import ResultsReport from './components/ResultsReport';
 import { processSurveyData } from './utils/calculations';
 import { LikertMapping, OverallResult, QuestionMapping, SurveyConfig } from './types';
 
@@ -26,7 +21,6 @@ const App: React.FC = () => {
   const [results, setResults] = useState<OverallResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [isExporting, setIsExporting] = useState(false);
   
   const defaultColors = {
     Response: '#3b82f6',
@@ -37,8 +31,6 @@ const App: React.FC = () => {
 
   const [chartColors, setChartColors] = useState<Record<string, string>>(defaultColors);
   
-  const resultsRef = useRef<HTMLDivElement>(null);
-
   const handleDownloadTemplate = () => {
     try {
       const XLSX = getXLSX();
@@ -152,7 +144,6 @@ const App: React.FC = () => {
       } 
       
       if (startColumn === -1) {
-         // Fallback default or error? Let's error to be robust.
          throw new Error("Sheet 'Settings': Could not locate a valid 'Start Column' (問題起始欄位) value. It must be a number.");
       }
 
@@ -302,57 +293,6 @@ const App: React.FC = () => {
     setChartColors(defaultColors);
   };
 
-  const handleExportPDF = async () => {
-    if (!resultsRef.current) return;
-    setIsExporting(true);
-
-    try {
-      // Small delay to ensure UI is ready
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const element = resultsRef.current;
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = pdfWidth / imgWidth;
-      const imgHeightInPdf = imgHeight * ratio;
-
-      let heightLeft = imgHeightInPdf;
-      let position = 0;
-
-      // Add first page
-      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeightInPdf);
-      heightLeft -= pdfHeight;
-
-      // Add subsequent pages if needed
-      while (heightLeft > 0) {
-        position -= pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeightInPdf);
-        heightLeft -= pdfHeight;
-      }
-
-      pdf.save(`RAG_Assessment_Report_${new Date().toISOString().split('T')[0]}.pdf`);
-
-    } catch (err) {
-      console.error("PDF Export failed", err);
-      alert("Failed to export PDF. Please try again.");
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900 pb-20">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -365,29 +305,7 @@ const App: React.FC = () => {
               RAG Resilience Analyzer
             </h1>
           </div>
-          {step === 'results' && (
-            <div className="flex space-x-4">
-              <button 
-                onClick={handleExportPDF}
-                disabled={isExporting}
-                className="flex items-center space-x-2 text-sm font-medium text-white bg-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-wait"
-              >
-                {isExporting ? (
-                   <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-                ) : (
-                   <FileDown className="w-4 h-4" />
-                )}
-                <span>Export PDF</span>
-              </button>
-              <button 
-                onClick={handleReset}
-                className="flex items-center space-x-2 text-sm text-gray-600 hover:text-indigo-600 transition-colors bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>New Analysis</span>
-              </button>
-            </div>
-          )}
+          {/* Header buttons are now managed inside ResultsReport for the Results view */}
         </div>
       </header>
 
@@ -468,96 +386,42 @@ const App: React.FC = () => {
         )}
 
         {step === 'results' && results && (
-          <div ref={resultsRef} className="animate-fade-in bg-slate-50 p-4">
-            {/* Top Stats */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              <div className="lg:col-span-1">
-                 <DiamondChart data={results} colors={chartColors} />
+          <>
+            {results.warnings && results.warnings.length > 0 && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-4">
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md shadow-sm">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-yellow-800">
+                        Data Warning: Unmapped Likert Values Detected
+                      </h3>
+                      <div className="mt-2 text-sm text-yellow-700">
+                        <p className="mb-2">
+                          The following values found in your survey data were not found in the Configuration (Likert_Mapping) and were excluded from calculation:
+                        </p>
+                        <ul className="list-disc pl-5 space-y-1 max-h-32 overflow-y-auto">
+                          {results.warnings.map((val, idx) => (
+                            <li key={idx}>"{val}"</li>
+                          ))}
+                        </ul>
+                        <p className="mt-2 text-xs font-semibold">
+                          Please update your Configuration file's "Likert_Mapping" sheet to include these variations if they are valid.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              
-              <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100 flex flex-col justify-center">
-                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Executive Summary</h2>
-                 <p className="text-gray-600 leading-relaxed mb-6">
-                   Based on the analysis of <strong>{results.potentials.Response.questions.length + results.potentials.Monitor.questions.length + results.potentials.Anticipate.questions.length + results.potentials.Learn.questions.length} questions</strong>, 
-                   the organization demonstrates an overall resilience score of <strong className="text-purple-600">{results.overallResilience.toFixed(1)}%</strong>.
-                 </p>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-100" style={{ borderColor: chartColors.Response + '40', backgroundColor: chartColors.Response + '10' }}>
-                       <div className="text-sm font-semibold mb-1 flex items-center" style={{ color: chartColors.Response }}><Activity className="w-4 h-4 mr-1"/> Response</div>
-                       <div className="text-2xl font-bold" style={{ color: chartColors.Response }}>{results.potentials.Response.score.toFixed(1)}%</div>
-                    </div>
-                    <div className="p-4 bg-red-50 rounded-lg border border-red-100" style={{ borderColor: chartColors.Monitor + '40', backgroundColor: chartColors.Monitor + '10' }}>
-                       <div className="text-sm font-semibold mb-1 flex items-center" style={{ color: chartColors.Monitor }}><ShieldCheck className="w-4 h-4 mr-1"/> Monitor</div>
-                       <div className="text-2xl font-bold" style={{ color: chartColors.Monitor }}>{results.potentials.Monitor.score.toFixed(1)}%</div>
-                    </div>
-                    <div className="p-4 bg-orange-50 rounded-lg border border-orange-100" style={{ borderColor: chartColors.Anticipate + '40', backgroundColor: chartColors.Anticipate + '10' }}>
-                       <div className="text-sm font-semibold mb-1 flex items-center" style={{ color: chartColors.Anticipate }}><Eye className="w-4 h-4 mr-1"/> Anticipate</div>
-                       <div className="text-2xl font-bold" style={{ color: chartColors.Anticipate }}>{results.potentials.Anticipate.score.toFixed(1)}%</div>
-                    </div>
-                    <div className="p-4 bg-green-50 rounded-lg border border-green-100" style={{ borderColor: chartColors.Learn + '40', backgroundColor: chartColors.Learn + '10' }}>
-                       <div className="text-sm font-semibold mb-1 flex items-center" style={{ color: chartColors.Learn }}><BookOpen className="w-4 h-4 mr-1"/> Learn</div>
-                       <div className="text-2xl font-bold" style={{ color: chartColors.Learn }}>{results.potentials.Learn.score.toFixed(1)}%</div>
-                    </div>
-                 </div>
-              </div>
-            </div>
-
-            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center">
-              <span className="w-1 h-8 bg-indigo-600 rounded-full mr-3"></span>
-              Potential Breakdowns
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-              <RadarCard data={results.potentials.Response} color={chartColors.Response} />
-              <RadarCard data={results.potentials.Monitor} color={chartColors.Monitor} />
-              <RadarCard data={results.potentials.Anticipate} color={chartColors.Anticipate} />
-              <RadarCard data={results.potentials.Learn} color={chartColors.Learn} />
-            </div>
-
-            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center">
-              <span className="w-1 h-8 bg-indigo-600 rounded-full mr-3"></span>
-              Detailed Item Scores
-            </h2>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Potential</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Focus / Item</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Score</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {Object.values(results.potentials).flatMap((p: any) => p.questions).map((q, i) => (
-                      <tr key={i} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                            style={{ 
-                              backgroundColor: (chartColors as any)[q.potential] + '20', 
-                              color: (chartColors as any)[q.potential] 
-                            }}>
-                            {q.potential}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{q.focus}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{q.averageScore.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full ${q.averageScore >= 4 ? 'bg-green-500' : q.averageScore >= 3 ? 'bg-yellow-400' : 'bg-red-500'}`} 
-                              style={{ width: `${(q.averageScore / 5) * 100}%` }}
-                            ></div>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
+            )}
+            <ResultsReport 
+              results={results} 
+              chartColors={chartColors} 
+              onReset={handleReset} 
+            />
+          </>
         )}
       </main>
     </div>
