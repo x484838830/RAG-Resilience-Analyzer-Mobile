@@ -1,0 +1,10 @@
+當您修改程式碼後：
+bash# 在本地修改程式碼後
+git add .
+git commit -m "Update features"
+git push
+
+# Vercel 會自動重新部署！
+# 約 1-2 分鐘後，網站就更新了
+
+使用者重新開啟 App 時，會自動載入新版本。
